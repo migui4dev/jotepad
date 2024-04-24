@@ -30,7 +30,7 @@ import javax.swing.UnsupportedLookAndFeelException;
 public class View extends JFrame {
 
     private static final long serialVersionUID = -81894675312554367L;
-    private static final String VERSION = "0.11";
+    private static final String VERSION = "0.12";
     private static final String TITLE = "Jotepad";
     private static final String LOOK_AND_FEEL = "Windows";
     private static final Font DEFAULT_FONT = new Font("Liberation Mono", 0, 16);
@@ -94,7 +94,7 @@ public class View extends JFrame {
         });
 
         actionFormatFont = (e -> {
-            
+
             new FontSelector().setVisible(true);
         });
 
@@ -152,14 +152,12 @@ public class View extends JFrame {
             @Override
             public void keyPressed(KeyEvent e) {
                 if (e.isControlDown()) {
-                    if ((char) e.getKeyCode() == 'O' || (char) e.getKeyCode() == 'o') {
+                    if (String.format("%s", (char) e.getKeyCode()).equals("O")) {
                         openFile();
-                    } else if ((char) e.getKeyCode() == 'S' || (char) e.getKeyCode() == 's') {
+                    } else if (e.isShiftDown() && String.format("%s", (char) e.getKeyCode()).equals("S")) {
+                        saveFileAs();
+                    } else if (String.format("%s", (char) e.getKeyCode()).equals("S")) {
                         saveFile();
-                    } else if (e.isShiftDown()) {
-                        if ((char) e.getKeyCode() == 'S' || (char) e.getKeyCode() == 's') {
-                            saveFileAs();
-                        }
                     }
                 }
             }

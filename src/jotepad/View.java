@@ -33,8 +33,9 @@ public class View extends JFrame {
     private static final String VERSION = "0.12";
     private static final String TITLE = "Jotepad";
     private static final String LOOK_AND_FEEL = "Windows";
-    private static final Font DEFAULT_FONT = new Font("Liberation Mono", 0, 16);
-    private static final int WIDHT = 800, HEIGHT = WIDHT - 300, YES = 0, CANCEL = 1, NO_FILE = 1;
+    private static final int WINDOW_WIDHT = 800, WINDOW_HEIGHT = WINDOW_WIDHT - 300;
+
+    private final Font defaultFont = new Font("Liberation Mono", 0, 16);
 
     private JFileChooser fileChooser;
     private Container container;
@@ -44,14 +45,17 @@ public class View extends JFrame {
     private JCheckBoxMenuItem formatWordWrap;
     private JMenuItem formatFont;
     private JMenuItem viewAbout;
-    protected static JTextArea textArea;
+    private static JTextArea textArea;
     private ActionListener actionFileOpen, actionFileSave, actionFileSaveAs, actionFileClose;
     private ActionListener actionFormatWordWrap;
     private ActionListener actionFormatFont, actionHelpAbout;
     private JScrollPane scrollBar;
     private static File savedFile, openedFile;
 
+    private final Object lock;
+
     public View() {
+        lock = new Object();
         this.initComponents();
     }
 
@@ -70,6 +74,7 @@ public class View extends JFrame {
     }
 
     private void initComponents() {
+
         setLookAndFeel();
 
         fileChooser = new JFileChooser();
@@ -146,7 +151,7 @@ public class View extends JFrame {
 
         textArea = new JTextArea();
         textArea.setLineWrap(true);
-        textArea.setFont(DEFAULT_FONT);
+        textArea.setFont(defaultFont);
 
         textArea.addKeyListener(new KeyAdapter() {
             @Override
@@ -174,9 +179,13 @@ public class View extends JFrame {
 
         setTitle(String.format("%s v%s", TITLE, VERSION));
 
-        setSize(WIDHT, HEIGHT);
+        setSize(WINDOW_WIDHT, WINDOW_HEIGHT);
 
         setJMenuBar(menuBar);
+    }
+
+    protected static JTextArea getTextArea() {
+        return textArea;
     }
 
     private void toggleLineWrap() {
@@ -188,50 +197,82 @@ public class View extends JFrame {
         if (savedFile == null) {
             saveFileAs();
         } else {
-            try {
-                savedFile.delete();
-                savedFile.createNewFile();
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            }
             writeContent();
-            this.setTitle(String.format("%s v%s | %s", TITLE, VERSION, savedFile.toString()));
         }
         textArea.setEditable(true);
     }
 
     private void saveFileAs() {
-        int answer;
         textArea.setEditable(false);
-        int fileAnswer = fileChooser.showOpenDialog(container);
-        if (fileAnswer != NO_FILE) {
-            savedFile = new File(fileChooser.getSelectedFile().getAbsolutePath());
+        int fileAnswer = fileChooser.showSaveDialog(container);
 
-            if (savedFile.exists()) {
-                answer = JOptionPane.showConfirmDialog(container,
-                        "This file already exists, do you want overwrite it?", "Overwrite file?", JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE);
-                if (answer == YES) {
-                    saveFile();
-                }
-            } else {
-                try {
-                    savedFile.createNewFile();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+        if (fileAnswer == JFileChooser.APPROVE_OPTION) {
+            String name = fileChooser.getSelectedFile().getAbsolutePath();
+
+            if (!name.endsWith(".txt")) {
+                name = name.concat(".txt");
             }
-            writeContent();
-            this.setTitle(String.format("%s v%s | %s", TITLE, VERSION, savedFile.toString()));
+
+            savedFile = new File(name);
+
+            if (!savedFile.exists()) {
+                writeContent();
+                this.setTitle(String.format("%s v%s | %s", TITLE, VERSION, savedFile.toString()));
+            } else {
+                int answer = JOptionPane.showConfirmDialog(container,
+                        "This file already exists, do you want overwrite it?", "Overwrite file?", JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE);
+
+                if (answer == JOptionPane.YES_OPTION) {
+                    writeContent();
+                }
+
+            }
+
         }
         textArea.setEditable(true);
     }
 
+    private byte[] putDataInBuffer() {
+        String valorTextArea = textArea.getText();
+        byte[] buffer = new byte[valorTextArea.length()];
+
+        Thread thread1 = new Thread(() -> {
+            synchronized (lock) {
+                for (int i = 0; i < valorTextArea.length() / 2; i++) {
+                    buffer[i] = (byte) valorTextArea.charAt(i);
+                }
+                lock.notify();
+            }
+        });
+
+        Thread thread2 = new Thread(() -> {
+            synchronized (lock) {
+                for (int i = valorTextArea.length() / 2; i < valorTextArea.length(); i++) {
+                    buffer[i] = (byte) valorTextArea.charAt(i);
+                }
+                lock.notify();
+            }
+        });
+
+        thread1.start();
+        thread2.start();
+
+        try {
+            thread1.join();
+            thread2.join();
+        } catch (InterruptedException ex) {
+            Logger.getLogger(View.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
+        return buffer;
+    }
+
     private void writeContent() {
         try (BufferedOutputStream writer = new BufferedOutputStream(new FileOutputStream(savedFile))) {
-            byte[] buffer = new byte[textArea.getText().length()];
+            byte[] buffer = putDataInBuffer();
 
-            for (int i = 0; i < buffer.length; i++) {
-                buffer[i] = (byte) textArea.getText().charAt(i);
+            if (buffer == null) {
+                return;
             }
 
             writer.write(buffer, 0, buffer.length);
@@ -249,14 +290,14 @@ public class View extends JFrame {
 
     private void openFile() {
         int answer;
-        if (fileChooser.showOpenDialog(container) != CANCEL) {
+        if (fileChooser.showOpenDialog(container) != JFileChooser.CANCEL_OPTION) {
             openedFile = savedFile = new File(fileChooser.getSelectedFile().getAbsolutePath());
             this.setTitle(String.format("%s v%s | %s", TITLE, VERSION, savedFile.toString()));
 
             if (!textArea.getText().isEmpty()) {
                 if (!fileContentEqualsInstanceContent()) {
                     answer = JOptionPane.showConfirmDialog(container, "Do you want to save this document?", "Save file", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-                    if (answer == YES) {
+                    if (answer == JOptionPane.YES_OPTION) {
                         saveFileAs();
                     }
                 }

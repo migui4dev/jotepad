@@ -23,7 +23,7 @@ public class FontSelector extends JDialog {
     private static final String TITLE = "Font selector";
     private final Container container;
     private final JPanel panel;
-    protected static String[] systemFonts;
+    private static String[] systemFonts;
     private JComboBox<String> comboFonts;
     private JComboBox<Integer> comboSizes;
     private final Integer[] sizes;
@@ -37,7 +37,7 @@ public class FontSelector extends JDialog {
         requestFocus();
 
         actionOk = (e -> {
-            View.changeFont(View.textArea, (String) comboFonts.getSelectedItem(),
+            View.changeFont(View.getTextArea(), (String) comboFonts.getSelectedItem(),
                     (int) comboSizes.getSelectedItem());
             dispose();
         });

@@ -1,6 +1,7 @@
 package jotepad;
 
 import java.awt.Container;
+import java.awt.Desktop;
 import java.awt.Font;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyAdapter;
@@ -11,6 +12,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JCheckBoxMenuItem;
@@ -30,85 +33,37 @@ import javax.swing.UnsupportedLookAndFeelException;
 public class View extends JFrame {
 
     private static final long serialVersionUID = -81894675312554367L;
-    private static final String VERSION = "0.12";
+    private static final String VERSION = "0.13";
     private static final String TITLE = "Jotepad";
     private static final String LOOK_AND_FEEL = "Windows";
     private static final int WINDOW_WIDHT = 800, WINDOW_HEIGHT = WINDOW_WIDHT - 300;
 
     private final Font defaultFont = new Font("Liberation Mono", 0, 16);
-
-    private JFileChooser fileChooser;
-    private Container container;
-    private JMenuBar menuBar;
-    private JMenu menuFile, menuFormat, menuHelp;
-    private JMenuItem fileOpen, fileSave, fileSaveAs, fileClose;
-    private JCheckBoxMenuItem formatWordWrap;
-    private JMenuItem formatFont;
-    private JMenuItem viewAbout;
-    private static JTextArea textArea;
-    private ActionListener actionFileOpen, actionFileSave, actionFileSaveAs, actionFileClose;
-    private ActionListener actionFormatWordWrap;
-    private ActionListener actionFormatFont, actionHelpAbout;
-    private JScrollPane scrollBar;
-    private static File savedFile, openedFile;
+    private final JFileChooser fileChooser;
+    private final Container container;
+    private final JMenuBar menuBar;
+    private final JMenu menuFile, menuFormat, menuHelp;
+    private final JMenuItem fileOpen, fileSave, fileSaveAs, fileClose;
+    private final JCheckBoxMenuItem formatWordWrap;
+    private final JMenuItem formatFont;
+    private final JMenuItem helpAbout, helpGitRepo;
+    private final JScrollPane scrollBar;
 
     private final Object lock;
 
+    private static JTextArea textArea;
+    private static File savedFile, openedFile;
+
+    private FontSelector fontSelector;
+
     public View() {
         lock = new Object();
-        this.initComponents();
-    }
-
-    private void setLookAndFeel() {
-        for (UIManager.LookAndFeelInfo info
-                : UIManager.getInstalledLookAndFeels()) {
-            if (info.getName().equals(LOOK_AND_FEEL)) {
-                try {
-                    UIManager.setLookAndFeel(info.getClassName());
-                    break;
-                } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | UnsupportedLookAndFeelException ex) {
-                    Logger.getLogger(View.class.getName()).log(Level.SEVERE, null, ex);
-                }
-            }
-        }
-    }
-
-    private void initComponents() {
 
         setLookAndFeel();
 
-        fileChooser = new JFileChooser();
-        actionFileOpen = (e -> {
-            openFile();
-        });
-
-        actionFileSave = (e -> {
-            saveFile();
-        });
-
-        actionFileSaveAs = (e -> {
-            saveFileAs();
-        });
-
-        actionFileClose = (e -> {
-            System.exit(0);
-        });
-
-        actionFormatWordWrap = (e -> {
-            toggleLineWrap();
-        });
-
-        actionFormatFont = (e -> {
-
-            new FontSelector().setVisible(true);
-        });
-
-        actionHelpAbout = (e -> {
-            JOptionPane.showMessageDialog(container,
-                    "Jotepad it's a text editor programmed in Java.", "About Jotepad", JOptionPane.INFORMATION_MESSAGE);
-        });
-
         container = getContentPane();
+
+        fileChooser = new JFileChooser();
 
         menuBar = new JMenuBar();
 
@@ -117,13 +72,24 @@ public class View extends JFrame {
         menuHelp = new JMenu("Help");
 
         fileOpen = new JMenuItem("Open... [Ctrl+O]");
-        fileOpen.addActionListener(actionFileOpen);
+        fileOpen.addActionListener((e -> {
+            openFile();
+        }));
+
         fileSave = new JMenuItem("Save [Ctrl+S]");
-        fileSave.addActionListener(actionFileSave);
+        fileSave.addActionListener((e -> {
+            saveFile();
+        }));
+
         fileSaveAs = new JMenuItem("Save as... [Ctrl+Shift+S]");
-        fileSaveAs.addActionListener(actionFileSaveAs);
+        fileSaveAs.addActionListener((e -> {
+            saveFileAs();
+        }));
+
         fileClose = new JMenuItem("Close");
-        fileClose.addActionListener(actionFileClose);
+        fileClose.addActionListener((e -> {
+            System.exit(0);
+        }));
 
         menuFile.add(fileOpen);
         menuFile.add(fileSave);
@@ -132,18 +98,38 @@ public class View extends JFrame {
         menuFile.add(fileClose);
 
         formatWordWrap = new JCheckBoxMenuItem("Word wrap", true);
-        formatWordWrap.addActionListener(actionFormatWordWrap);
+        formatWordWrap.addActionListener(e -> {
+            toggleLineWrap();
+        });
 
         formatFont = new JMenuItem("Font...");
-        formatFont.addActionListener(actionFormatFont);
+        formatFont.addActionListener((e -> {
+            if (fontSelector == null) {
+                fontSelector = new FontSelector();
+            }
+            fontSelector.setVisible(true);
+        }));
 
         menuFormat.add(formatFont);
         menuFormat.add(formatWordWrap);
 
-        viewAbout = new JMenuItem("About Jotepad");
-        viewAbout.addActionListener(actionHelpAbout);
+        helpAbout = new JMenuItem("About Jotepad");
+        helpAbout.addActionListener((e -> {
+            JOptionPane.showMessageDialog(container,
+                    "Jotepad it's a text editor programmed in Java.", "About Jotepad", JOptionPane.INFORMATION_MESSAGE);
+        }));
 
-        menuHelp.add(viewAbout);
+        helpGitRepo = new JMenuItem("Our GitHub's repo");
+        helpGitRepo.addActionListener((e) -> {
+            try {
+                Desktop.getDesktop().browse(new URI("https://github.com/sirmigui/jotepad"));
+            } catch (URISyntaxException | IOException ex) {
+                Logger.getLogger(View.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        });
+
+        menuHelp.add(helpAbout);
+        menuHelp.add(helpGitRepo);
 
         menuBar.add(menuFile);
         menuBar.add(menuFormat);
@@ -184,8 +170,18 @@ public class View extends JFrame {
         setJMenuBar(menuBar);
     }
 
-    protected static JTextArea getTextArea() {
-        return textArea;
+    private void setLookAndFeel() {
+        for (UIManager.LookAndFeelInfo info
+                : UIManager.getInstalledLookAndFeels()) {
+            if (info.getName().equals(LOOK_AND_FEEL)) {
+                try {
+                    UIManager.setLookAndFeel(info.getClassName());
+                    break;
+                } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | UnsupportedLookAndFeelException ex) {
+                    Logger.getLogger(View.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+        }
     }
 
     private void toggleLineWrap() {
@@ -197,7 +193,7 @@ public class View extends JFrame {
         if (savedFile == null) {
             saveFileAs();
         } else {
-            writeContent();
+            writeContentInFile();
         }
         textArea.setEditable(true);
     }
@@ -216,14 +212,14 @@ public class View extends JFrame {
             savedFile = new File(name);
 
             if (!savedFile.exists()) {
-                writeContent();
+                writeContentInFile();
                 this.setTitle(String.format("%s v%s | %s", TITLE, VERSION, savedFile.toString()));
             } else {
                 int answer = JOptionPane.showConfirmDialog(container,
                         "This file already exists, do you want overwrite it?", "Overwrite file?", JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE);
 
                 if (answer == JOptionPane.YES_OPTION) {
-                    writeContent();
+                    writeContentInFile();
                 }
 
             }
@@ -232,7 +228,7 @@ public class View extends JFrame {
         textArea.setEditable(true);
     }
 
-    private byte[] putDataInBuffer() {
+    private byte[] textToBuffer() {
         String valorTextArea = textArea.getText();
         byte[] buffer = new byte[valorTextArea.length()];
 
@@ -267,9 +263,9 @@ public class View extends JFrame {
         return buffer;
     }
 
-    private void writeContent() {
+    private void writeContentInFile() {
         try (BufferedOutputStream writer = new BufferedOutputStream(new FileOutputStream(savedFile))) {
-            byte[] buffer = putDataInBuffer();
+            byte[] buffer = textToBuffer();
 
             if (buffer == null) {
                 return;
@@ -284,8 +280,8 @@ public class View extends JFrame {
         textArea.setEditable(true);
     }
 
-    protected static void changeFont(JTextArea areaDeTexto, String nombreFuente, int tamañoFuente) {
-        areaDeTexto.setFont(new Font(nombreFuente, 0, tamañoFuente));
+    protected static void setFont(String nombreFuente, int tamañoFuente) {
+        textArea.setFont(new Font(nombreFuente, 0, tamañoFuente));
     }
 
     private void openFile() {
@@ -308,6 +304,7 @@ public class View extends JFrame {
 
     private String readFileContent() {
         StringBuilder fileContent = new StringBuilder();
+        long fileSize = openedFile.length();
 
         if (openedFile != null) {
             try (BufferedInputStream reader = new BufferedInputStream(new FileInputStream(openedFile))) {
@@ -341,6 +338,7 @@ public class View extends JFrame {
     }
 
     public static void main(String[] args) {
-        new View();
+        View view = new View();
+        view.setVisible(true);
     }
 }

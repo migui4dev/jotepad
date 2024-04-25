@@ -21,48 +21,21 @@ public class FontSelector extends JDialog {
 
     private static final long serialVersionUID = -8162065733123645031L;
     private static final String TITLE = "Font selector";
+
+    private final JComboBox<String> comboFonts;
+    private final JComboBox<Integer> comboSizes;
+
     private final Container container;
     private final JPanel panel;
-    private static String[] systemFonts;
-    private JComboBox<String> comboFonts;
-    private JComboBox<Integer> comboSizes;
     private final Integer[] sizes;
     private final JButton buttonOk;
-    private final ActionListener actionOk;
     private final WindowAdapter wa;
-    private JTextArea demonstrationText;
-    private final ItemListener actionComboFonts;
+    private final ItemListener actionComboFonts, actionComboSizes;
+
+    private static String[] systemFonts;
 
     public FontSelector() {
         requestFocus();
-
-        actionOk = (e -> {
-            View.changeFont(View.getTextArea(), (String) comboFonts.getSelectedItem(),
-                    (int) comboSizes.getSelectedItem());
-            dispose();
-        });
-
-        wa = new WindowAdapter() {
-            @Override
-            public void windowOpened(WindowEvent e) {
-                setAlwaysOnTop(true);
-            }
-        };
-
-        actionComboFonts = (e -> {
-            if (e.getStateChange() == ItemEvent.SELECTED) {
-                View.changeFont(demonstrationText, (String) e.getItem(), 48);
-            }
-
-        });
-
-        container = getContentPane();
-        container.setLayout(new GridBagLayout());
-        panel = (JPanel) container;
-        panel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-        demonstrationText = new JTextArea("Aa");
-        demonstrationText.setEditable(false);
-        demonstrationText.setFont(new Font("Liberation Sans", 0, 48));
 
         int j = 10;
 
@@ -74,15 +47,43 @@ public class FontSelector extends JDialog {
 
         systemFonts = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
         comboFonts = new JComboBox<>(systemFonts);
-        comboFonts.addItemListener(actionComboFonts);
         comboSizes = new JComboBox<>(sizes);
+
+        wa = new WindowAdapter() {
+            @Override
+            public void windowOpened(WindowEvent e) {
+                setAlwaysOnTop(true);
+            }
+        };
+
+        actionComboFonts = (e -> {
+            if (e.getStateChange() == ItemEvent.SELECTED) {
+                View.setFont((String) e.getItem(), (int) comboSizes.getSelectedItem());
+            }
+        });
+
+        actionComboSizes = (e -> {
+            if (e.getStateChange() == ItemEvent.SELECTED) {
+                View.setFont((String) comboFonts.getSelectedItem(), (int) e.getItem());
+            }
+        });
+
+        comboFonts.addItemListener(actionComboFonts);
+        comboSizes.addItemListener(actionComboSizes);
+
+        container = getContentPane();
+        container.setLayout(new GridBagLayout());
+        panel = (JPanel) container;
+        panel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+
         buttonOk = new JButton("OK");
-        buttonOk.addActionListener(actionOk);
+        buttonOk.addActionListener(e -> {
+            dispose();
+        });
 
         container.add(comboFonts);
         container.add(comboSizes);
         container.add(buttonOk);
-        container.add(demonstrationText);
 
         pack();
         setTitle(TITLE);

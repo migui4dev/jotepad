@@ -3,7 +3,6 @@ package jotepad;
 import java.awt.Container;
 import java.awt.Desktop;
 import java.awt.Font;
-import java.awt.event.ActionListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.io.BufferedInputStream;
@@ -14,6 +13,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JCheckBoxMenuItem;
@@ -28,17 +30,18 @@ import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
 import javax.swing.JTextArea;
 import javax.swing.UIManager;
+import javax.swing.UIManager.LookAndFeelInfo;
 import javax.swing.UnsupportedLookAndFeelException;
 
 public class View extends JFrame {
 
     private static final long serialVersionUID = -81894675312554367L;
-    private static final String VERSION = "0.13";
+    private static final String VERSION = "0.131";
     private static final String TITLE = "Jotepad";
     private static final String LOOK_AND_FEEL = "Windows";
     private static final int WINDOW_WIDHT = 800, WINDOW_HEIGHT = WINDOW_WIDHT - 300;
 
-    private final Font defaultFont = new Font("Liberation Mono", 0, 16);
+    private final Font defaultFont = new Font("Liberation Mono", Font.PLAIN, 16);
     private final JFileChooser fileChooser;
     private final Container container;
     private final JMenuBar menuBar;
@@ -50,14 +53,18 @@ public class View extends JFrame {
     private final JScrollPane scrollBar;
 
     private final Object lock;
+    private final ArrayList<String> history;
 
     private static JTextArea textArea;
     private static File savedFile, openedFile;
 
+    private int currentHistoryIndex;
     private FontSelector fontSelector;
 
     public View() {
         lock = new Object();
+        history = new ArrayList<>();
+        currentHistoryIndex = -1;
 
         setLookAndFeel();
 
@@ -142,14 +149,30 @@ public class View extends JFrame {
         textArea.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
+                String key = String.format("%s", (char) e.getKeyCode());
                 if (e.isControlDown()) {
-                    if (String.format("%s", (char) e.getKeyCode()).equals("O")) {
-                        openFile();
-                    } else if (e.isShiftDown() && String.format("%s", (char) e.getKeyCode()).equals("S")) {
-                        saveFileAs();
-                    } else if (String.format("%s", (char) e.getKeyCode()).equals("S")) {
-                        saveFile();
+                    switch (key.toLowerCase()) {
+                        case "o" -> {
+                            openFile();
+                        }
+                        case "s" -> {
+                            if (e.isShiftDown()) {
+                                saveFileAs();
+                            } else {
+                                saveFile();
+                            }
+                        }
+                        case "z" -> {
+                            undoChanges();
+                            return;
+                        }
                     }
+
+                }
+
+                if (!textArea.getText().isBlank() && textArea.getText().length() % 10 == 0) {
+                    history.add(textArea.getText());
+                    currentHistoryIndex++;
                 }
             }
         }
@@ -171,21 +194,34 @@ public class View extends JFrame {
     }
 
     private void setLookAndFeel() {
-        for (UIManager.LookAndFeelInfo info
-                : UIManager.getInstalledLookAndFeels()) {
-            if (info.getName().equals(LOOK_AND_FEEL)) {
+        List<LookAndFeelInfo> lookAndFeelList = Arrays.asList(UIManager.getInstalledLookAndFeels());
+
+        lookAndFeelList.forEach((e) -> {
+            if (e.getName().equals(LOOK_AND_FEEL)) {
                 try {
-                    UIManager.setLookAndFeel(info.getClassName());
-                    break;
-                } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | UnsupportedLookAndFeelException ex) {
+                    UIManager.setLookAndFeel(e.getClassName());
+                    return;
+                } catch (ClassNotFoundException | UnsupportedLookAndFeelException | IllegalAccessException | InstantiationException ex) {
                     Logger.getLogger(View.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
-        }
+        });
     }
 
     private void toggleLineWrap() {
         textArea.setLineWrap(!textArea.getLineWrap());
+    }
+
+    private void changeTitle() {
+        setTitle(String.format("%s v%s | %s", TITLE, VERSION, savedFile.toString()));
+    }
+
+    private void undoChanges() {
+        if (currentHistoryIndex > 0) {
+            history.remove(history.size() - 1);
+            currentHistoryIndex--;
+            textArea.setText(history.get(currentHistoryIndex));
+        }
     }
 
     private void saveFile() {
@@ -213,7 +249,7 @@ public class View extends JFrame {
 
             if (!savedFile.exists()) {
                 writeContentInFile();
-                this.setTitle(String.format("%s v%s | %s", TITLE, VERSION, savedFile.toString()));
+                changeTitle();
             } else {
                 int answer = JOptionPane.showConfirmDialog(container,
                         "This file already exists, do you want overwrite it?", "Overwrite file?", JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE);
@@ -288,7 +324,7 @@ public class View extends JFrame {
         int answer;
         if (fileChooser.showOpenDialog(container) != JFileChooser.CANCEL_OPTION) {
             openedFile = savedFile = new File(fileChooser.getSelectedFile().getAbsolutePath());
-            this.setTitle(String.format("%s v%s | %s", TITLE, VERSION, savedFile.toString()));
+            changeTitle();
 
             if (!textArea.getText().isEmpty()) {
                 if (!fileContentEqualsInstanceContent()) {

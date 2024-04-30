@@ -1,22 +1,21 @@
 package jotepad;
 
 import java.awt.Container;
-import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.awt.GridBagLayout;
-import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JPanel;
-import javax.swing.JTextArea;
 
+/**
+ *
+ * @author sirmigui
+ */
 public class FontSelector extends JDialog {
 
     private static final long serialVersionUID = -8162065733123645031L;
@@ -27,34 +26,25 @@ public class FontSelector extends JDialog {
 
     private final Container container;
     private final JPanel panel;
-    private final Integer[] sizes;
+    private final Integer[] fontSizes;
     private final JButton buttonOk;
-    private final WindowAdapter wa;
     private final ItemListener actionComboFonts, actionComboSizes;
 
     private static String[] systemFonts;
 
     public FontSelector() {
         requestFocus();
+        setAlwaysOnTop(true);
 
-        int j = 10;
+        fontSizes = new Integer[30];
 
-        sizes = new Integer[30];
-        for (int i = 0; i < sizes.length; i++) {
-            sizes[i] = j;
-            j += 2;
+        for (int i = 0, j = 10; i < fontSizes.length; i++, j += 2) {
+            fontSizes[i] = j;
         }
 
         systemFonts = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
         comboFonts = new JComboBox<>(systemFonts);
-        comboSizes = new JComboBox<>(sizes);
-
-        wa = new WindowAdapter() {
-            @Override
-            public void windowOpened(WindowEvent e) {
-                setAlwaysOnTop(true);
-            }
-        };
+        comboSizes = new JComboBox<>(fontSizes);
 
         actionComboFonts = (e -> {
             if (e.getStateChange() == ItemEvent.SELECTED) {
@@ -90,7 +80,6 @@ public class FontSelector extends JDialog {
         setVisible(true);
         setResizable(false);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        addWindowListener(wa);
 
     }
 

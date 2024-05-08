@@ -1,3 +1,5 @@
 <h1>AUTHORS:</h1>
-<a href="https://github.com/sirmigui">@sirmigui<a/>
-<a href="https://github.com/hiraryw64">@hiraryw64<a/>
+<ul>
+  <li><a href="https://github.com/sirmigui">@sirmigui<a/>: made Jotepad base code and is adding some funtionalities.</li>
+  <li><a href="https://github.com/hiraryw64">@hiraryw64<a/>: is helping to improve Jotepad's code and is adding some functionalities.</li>
+</ul>

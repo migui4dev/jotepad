@@ -1,86 +1,118 @@
-package jotepad;
+package jotepad.view;
 
 import java.awt.Container;
+import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.awt.GridBagLayout;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JPanel;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerModel;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingUtilities;
 
 /**
  *
  * @author sirmigui
  */
-public class FontSelector extends JDialog {
+public class FontManager extends JDialog {
 
-    private static final long serialVersionUID = -8162065733123645031L;
-    private static final String TITLE = "Font selector";
+	public static final int MAX_SIZE = 120;
+	public static final int MIN_SIZE = 2;
+	public static final int STEP_SIZE = 2;
 
-    private final JComboBox<String> comboFonts;
-    private final JComboBox<Integer> comboSizes;
+	private static final long serialVersionUID = -8162065733123645031L;
+	private static final String TITLE = "Font selector";
 
-    private final Container container;
-    private final JPanel panel;
-    private final Integer[] fontSizes;
-    private final JButton buttonOk;
-    private final ItemListener actionComboFonts, actionComboSizes;
+	private JComboBox<String> fontsCombo;
+	private JSpinner sizesSpinner;
+	private SpinnerModel spinnerModel;
 
-    private static String[] systemFonts;
+	private Container container;
+	private JPanel panel;
+	private JButton buttonOk;
 
-    public FontSelector() {
-        requestFocus();
-        setAlwaysOnTop(true);
+	private String[] systemFonts;
+	private MainWindow view;
 
-        fontSizes = new Integer[30];
+	public FontManager(MainWindow view) {
+		this.view = view;
+		requestFocus();
+		setAlwaysOnTop(true);
 
-        for (int i = 0, j = 10; i < fontSizes.length; i++, j += 2) {
-            fontSizes[i] = j;
-        }
+		systemFonts = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
 
-        systemFonts = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
-        comboFonts = new JComboBox<>(systemFonts);
-        comboSizes = new JComboBox<>(fontSizes);
+		fontsCombo = new JComboBox<>(systemFonts);
+		fontsCombo.setSelectedItem(view.getTextArea().getFont().getFontName());
+		fontsCombo.addItemListener(new ItemListener() {
+			@Override
+			public void itemStateChanged(ItemEvent e) {
+				if (e.getStateChange() == ItemEvent.SELECTED) {
+					Font f = new Font((String) e.getItem(), Font.PLAIN, (int) spinnerModel.getValue());
+					view.getTextArea().setFont(f);
+				}
+			}
+		});
 
-        actionComboFonts = (e -> {
-            if (e.getStateChange() == ItemEvent.SELECTED) {
-                View.setFont((String) e.getItem(), (int) comboSizes.getSelectedItem());
-            }
-        });
+		sizesSpinner = new JSpinner();
+		spinnerModel = new SpinnerNumberModel(view.getTextArea().getFont().getSize(), MIN_SIZE, MAX_SIZE, STEP_SIZE);
+		spinnerModel.addChangeListener((e) -> {
+			Font f = new Font(fontsCombo.getItemAt(fontsCombo.getSelectedIndex()), Font.PLAIN,
+					(int) spinnerModel.getValue());
+			view.getTextArea().setFont(f);
+		});
+		sizesSpinner.setModel(spinnerModel);
 
-        actionComboSizes = (e -> {
-            if (e.getStateChange() == ItemEvent.SELECTED) {
-                View.setFont((String) comboFonts.getSelectedItem(), (int) e.getItem());
-            }
-        });
+		container = getContentPane();
+		container.setLayout(new GridBagLayout());
+		panel = (JPanel) container;
 
-        comboFonts.addItemListener(actionComboFonts);
-        comboSizes.addItemListener(actionComboSizes);
+		panel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
-        container = getContentPane();
-        container.setLayout(new GridBagLayout());
-        panel = (JPanel) container;
-        panel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+		buttonOk = new JButton("OK");
+		buttonOk.addActionListener(e -> {
+			changeFontValues();
+			dispose();
+		});
 
-        buttonOk = new JButton("OK");
-        buttonOk.addActionListener(e -> {
-            dispose();
-        });
+		container.add(fontsCombo);
+		container.add(sizesSpinner);
+		container.add(buttonOk);
 
-        container.add(comboFonts);
-        container.add(comboSizes);
-        container.add(buttonOk);
+		addWindowListener(new WindowAdapter() {
+			@Override
+			public void windowActivated(WindowEvent e) {
+				updateTheme();
+			}
 
-        pack();
-        setTitle(TITLE);
-        setVisible(true);
-        setResizable(false);
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+			@Override
+			public void windowClosing(WindowEvent e) {
+				changeFontValues();
+			}
+		});
 
-    }
+		pack();
+		setTitle(TITLE);
+		setVisible(true);
+		setResizable(false);
+		setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+	}
+
+	private void changeFontValues() {
+		fontsCombo.setSelectedItem(view.getTextArea().getFont().getFontName());
+		spinnerModel.setValue(view.getTextArea().getFont().getSize());
+	}
+
+	private void updateTheme() {
+		SwingUtilities.updateComponentTreeUI(this);
+	}
 
 }

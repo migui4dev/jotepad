@@ -1,16 +1,11 @@
-package jotepad;
+package jotepad.view;
 
-import java.awt.Color;
+import java.awt.BorderLayout;
 import java.awt.Container;
 import java.awt.Desktop;
 import java.awt.Font;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -28,71 +23,85 @@ import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
 import javax.swing.JTextArea;
+import javax.swing.LookAndFeel;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+import javax.swing.UnsupportedLookAndFeelException;
+import javax.swing.plaf.metal.MetalLookAndFeel;
+import javax.swing.plaf.nimbus.NimbusLookAndFeel;
+
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLightLaf;
+import com.formdev.flatlaf.themes.FlatMacDarkLaf;
+import com.formdev.flatlaf.themes.FlatMacLightLaf;
+
+import jotepad.controller.FileManager;
 
 /**
  *
  * @author sirmigui
  */
-public class View extends JFrame {
+public class MainWindow extends JFrame {
+
+	private static final LookAndFeel THEMES[] = { new FlatDarkLaf(), new FlatLightLaf(), new FlatMacDarkLaf(),
+			new FlatMacLightLaf(), new MetalLookAndFeel(), new NimbusLookAndFeel() };
+
+	private static final Font DEFAULT_FONT = new Font("Liberation Mono", Font.PLAIN, 16);
 
 	private static final long serialVersionUID = -81894675312554367L;
-	private static final String VERSION = "0.132";
-	private static final String TITLE = "Jotepad";
-	private static final int WINDOW_WIDHT = 800, WINDOW_HEIGHT = WINDOW_WIDHT - 300;
-	private static final Font FONT = new Font("Liberation Mono", Font.PLAIN, 16);
-	private static final Theme[] THEMES = { new Theme("Dark", Color.white, new Color(40, 40, 40)),
-			new Theme("Light", Color.black, Color.white), new Theme("Ultra Dark", Color.white, Color.black), };
 
-	private final JFileChooser fileChooser;
+	private static final int WINDOW_WIDHT = 800, WINDOW_HEIGHT = WINDOW_WIDHT - 300;
+	private static final String VERSION = "0.134";
+	private static final String TITLE = "Jotepad";
+	private static final String TITLE_FORMAT = "%s v%s | %s";
+
 	private final Container container;
+	private final JFileChooser fileChooser;
+
+	// Frame elements:
 	private final JMenuBar menuBar;
 	private final JMenu menuFile, menuView, menuFormat, menuHelp;
 	private final JMenuItem fileOpen, fileSave, fileSaveAs, fileClose;
 	private final JMenuItem viewChangeTheme;
-	private final JMenuItem formatFont, formatFindAndReplace;
+	private final JMenuItem formatFont;
 	private final JMenuItem helpAbout, helpGitRepo;
 	private final JCheckBoxMenuItem formatWordWrap;
 	private final JScrollPane scrollBar;
+	private final JTextArea textArea;
 
-	private final Object lock;
 	private final ArrayList<String> history;
-
-	private static JTextArea textArea;
-	private static File savedFile, openedFile;
-
+	private final FileManager fileManager;
 	private int currentHistoryIndex;
-	private FontSelector fontSelector;
-	private final JMenuItem[] menuItemThemes;
+	private FontManager fontSelector;
 
-	public View() {
-		lock = new Object();
+	public MainWindow() {
+		fileManager = new FileManager(this);
 		history = new ArrayList<>();
 		currentHistoryIndex = -1;
 
+		fileChooser = new JFileChooser();
 		container = getContentPane();
 
-		fileChooser = new JFileChooser();
-
+		// MenuBar y sus elementos declarados
 		menuBar = new JMenuBar();
-
 		menuFile = new JMenu("File");
 		menuView = new JMenu("View");
 		menuFormat = new JMenu("Format");
 		menuHelp = new JMenu("Help");
 
-		fileOpen = new JMenuItem("Open... [Ctrl+O]");
+		fileOpen = new JMenuItem("Open...");
 		fileOpen.addActionListener((e -> {
-			openFile();
+			fileManager.openFile();
 		}));
 
-		fileSave = new JMenuItem("Save [Ctrl+S]");
+		fileSave = new JMenuItem("Save");
 		fileSave.addActionListener((e -> {
-			saveFile();
+			fileManager.saveFile();
 		}));
 
-		fileSaveAs = new JMenuItem("Save as... [Ctrl+Shift+S]");
+		fileSaveAs = new JMenuItem("Save as...");
 		fileSaveAs.addActionListener((e -> {
-			saveFileAs();
+			fileManager.saveFileAs();
 		}));
 
 		fileClose = new JMenuItem("Close");
@@ -105,18 +114,19 @@ public class View extends JFrame {
 		menuFile.add(fileSaveAs);
 		menuFile.add(new JSeparator());
 		menuFile.add(fileClose);
+		// Termina la declaración de MenuBar y sus elementos
 
 		viewChangeTheme = new JMenu("Change Theme");
-		menuItemThemes = new JMenuItem[THEMES.length];
 
 		for (int i = 0; i < THEMES.length; i++) {
-			Theme theme = THEMES[i];
-			JMenuItem menuItemTheme = new JMenuItem(theme.getName());
+			JMenuItem menuItemTheme = new JMenuItem(THEMES[i].getName());
+
+			int index = i;
 			menuItemTheme.addActionListener((e -> {
-				setTheme(theme.getName());
+				setTheme(index);
 			}));
+
 			viewChangeTheme.add(menuItemTheme);
-			menuItemThemes[i] = menuItemTheme;
 		}
 
 		menuView.add(viewChangeTheme);
@@ -124,24 +134,18 @@ public class View extends JFrame {
 		formatFont = new JMenuItem("Font...");
 		formatFont.addActionListener((e -> {
 			if (fontSelector == null) {
-				fontSelector = new FontSelector();
+				fontSelector = new FontManager(this);
 			}
 			fontSelector.setVisible(true);
 		}));
 
-		formatWordWrap = new JCheckBoxMenuItem("Word wrap", false);
+		formatWordWrap = new JCheckBoxMenuItem("Word wrap", true);
 		formatWordWrap.addActionListener(e -> {
 			toggleLineWrap();
 		});
 
-		formatFindAndReplace = new JMenuItem("Find and replace...");
-		formatFindAndReplace.addActionListener(e -> {
-			new Finder().setVisible(true);
-		});
-
 		menuFormat.add(formatFont);
 		menuFormat.add(formatWordWrap);
-		menuFormat.add(formatFindAndReplace);
 
 		helpAbout = new JMenuItem("About Jotepad");
 		helpAbout.addActionListener((e -> {
@@ -149,12 +153,21 @@ public class View extends JFrame {
 					JOptionPane.INFORMATION_MESSAGE);
 		}));
 
-		helpGitRepo = new JMenuItem("Our GitHub's repo");
+		helpGitRepo = new JMenuItem("GitHub repository");
 		helpGitRepo.addActionListener((e) -> {
 			try {
-				Desktop.getDesktop().browse(new URI("https://github.com/sirmigui/jotepad"));
+				Desktop d = Desktop.getDesktop();
+
+				if (!Desktop.isDesktopSupported() || !d.isSupported(Desktop.Action.BROWSE)) {
+					JOptionPane.showMessageDialog(this, "The link could not be opened.", "Action not supported",
+							JOptionPane.ERROR_MESSAGE);
+					return;
+				}
+
+				d.browse(new URI("https://github.com/sirmigui/jotepad"));
+
 			} catch (URISyntaxException | IOException ex) {
-				Logger.getLogger(View.class.getName()).log(Level.SEVERE, null, ex);
+				Logger.getLogger(MainWindow.class.getName()).log(Level.SEVERE, null, ex);
 			}
 		});
 
@@ -167,41 +180,39 @@ public class View extends JFrame {
 		menuBar.add(menuHelp);
 
 		textArea = new JTextArea();
-		textArea.setFont(FONT);
+		textArea.setBorder(null);
+		textArea.setFont(DEFAULT_FONT);
+		textArea.setLineWrap(formatWordWrap.isEnabled());
 
 		textArea.addKeyListener(new KeyAdapter() {
 			@Override
 			public void keyPressed(KeyEvent e) {
-				String key = String.format("%s", (char) e.getKeyCode());
+				int keyCode = e.getKeyCode();
 
 				if (e.isControlDown()) {
-					switch (key.toLowerCase()) {
-					case "f" -> {
-						new Finder().setVisible(true);
-					}
-					case "p" -> {
-						zoomText(2);
+					switch (keyCode) {
+					case KeyEvent.VK_PLUS -> {
+						zoomText(FontManager.STEP_SIZE);
 						return;
 					}
-					case "m" -> {
-						zoomText(-2);
+					case KeyEvent.VK_MINUS -> {
+						zoomText(-FontManager.STEP_SIZE);
 						return;
 					}
-					case "o" -> {
-						openFile();
+					case KeyEvent.VK_O -> {
+						fileManager.openFile();
 						return;
 					}
-					case "s" -> {
+					case KeyEvent.VK_S -> {
 						if (e.isShiftDown()) {
-							saveFileAs();
+							fileManager.saveFileAs();
 							return;
 						} else {
-							saveFile();
+							fileManager.saveFile();
 							return;
 						}
 					}
-					case "z" -> {
-						System.out.println("sa");
+					case KeyEvent.VK_Z -> {
 						undoChanges();
 						return;
 					}
@@ -209,268 +220,81 @@ public class View extends JFrame {
 
 				}
 
-				if (!textArea.getText().isBlank() && textArea.getText().length() % 10 == 0) {
+				if (!textArea.getText().isBlank() && textArea.getText().length() % 5 == 0) {
 					history.add(textArea.getText());
 					currentHistoryIndex++;
 				}
 			}
 		});
 
-		scrollBar = new JScrollPane(textArea, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
-				JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
-		container.add(scrollBar);
+		scrollBar = new JScrollPane(textArea, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+				JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+		scrollBar.validate();
 
+		container.setLayout(new BorderLayout());
+		container.add(scrollBar, BorderLayout.CENTER);
+
+		setJMenuBar(menuBar);
+		setSize(WINDOW_WIDHT, WINDOW_HEIGHT);
 		setVisible(true);
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
 		setTitle(String.format("%s v%s", TITLE, VERSION));
-		setSize(WINDOW_WIDHT, WINDOW_HEIGHT);
-		setJMenuBar(menuBar);
+
+		setTheme(0);
 	}
 
-	protected static void setFont(String nombreFuente, int tamañoFuente) {
-		textArea.setFont(new Font(nombreFuente, 0, tamañoFuente));
+	private void setTheme(int themeIndex) {
+		try {
+			UIManager.setLookAndFeel(THEMES[themeIndex]);
+			SwingUtilities.updateComponentTreeUI(this);
+			fileChooser.updateUI();
+		} catch (UnsupportedLookAndFeelException | NullPointerException ex) {
+			Logger.getLogger(MainWindow.class.getName()).log(Level.SEVERE, null, ex);
+		}
 	}
 
-	protected static JTextArea getTextArea() {
+	public JTextArea getTextArea() {
 		return textArea;
+	}
+
+	public JFileChooser getFileChooser() {
+		return fileChooser;
 	}
 
 	private void zoomText(int zoom) {
 		Font font = textArea.getFont();
-		if (font.getSize() == 200 && zoom > 0 || font.getSize() == 2 && zoom < 0) {
+		boolean zoomIn = zoom > 0;
+
+		if (font.getSize() == FontManager.MAX_SIZE && zoomIn || font.getSize() == FontManager.MIN_SIZE && !zoomIn) {
 			return;
 		}
 
-		System.out.println(font.getSize());
 		textArea.setFont(new Font(font.getFontName(), Font.PLAIN, font.getSize() + zoom));
-	}
-
-	private void setTheme(String themeName) {
-		JMenuItem[] items = { fileOpen, fileSave, fileSaveAs, fileClose, viewChangeTheme, formatFont, helpAbout,
-				helpAbout, helpGitRepo, formatWordWrap, formatFindAndReplace };
-
-		JMenu[] menus = { menuFile, menuView, menuFormat, menuHelp };
-
-		Theme theme = null;
-
-		for (Theme t : THEMES) {
-			if (t.getName().equals(themeName)) {
-				theme = t;
-				break;
-			}
-		}
-
-		if (theme == null) {
-			return;
-		}
-
-		Color bgColor = theme.getBgColor();
-		Color fgColor = theme.getFgColor();
-		boolean opaque = !bgColor.equals(Color.white);
-
-		menuBar.setOpaque(opaque);
-		menuBar.setForeground(fgColor);
-		menuBar.setBackground(bgColor);
-
-		textArea.setBackground(bgColor);
-		textArea.setForeground(fgColor);
-
-		for (JMenuItem item : items) {
-			item.setOpaque(opaque);
-			item.setForeground(fgColor);
-			item.setBackground(bgColor);
-		}
-
-		for (JMenu menu : menus) {
-			menu.setOpaque(opaque);
-			menu.setForeground(fgColor);
-			menu.setBackground(bgColor);
-		}
-
-		for (Theme t : THEMES) {
-			JMenuItem miTheme = new JMenuItem(t.getName());
-			miTheme.setOpaque(opaque);
-			miTheme.setForeground(fgColor);
-			miTheme.setBackground(bgColor);
-		}
-
-		for (JMenuItem itemTheme : menuItemThemes) {
-			itemTheme.setOpaque(opaque);
-			itemTheme.setForeground(fgColor);
-			itemTheme.setBackground(bgColor);
-		}
-
 	}
 
 	private void toggleLineWrap() {
 		textArea.setLineWrap(!textArea.getLineWrap());
 	}
 
-	private void changeTitle() {
-		setTitle(String.format("%s v%s | %s", TITLE, VERSION, savedFile.toString()));
+	public void changeTitle(String filePath) {
+		setTitle(String.format(TITLE_FORMAT, TITLE, VERSION, filePath));
 	}
 
 	private void undoChanges() {
-		if (currentHistoryIndex > 0) {
-			history.remove(history.size() - 1);
-			currentHistoryIndex--;
-			textArea.setText(history.get(currentHistoryIndex));
-		}
-	}
-
-	private String setNameToFile(String name) {
-		int indexOfDot = name.indexOf(".");
-
-		if (indexOfDot == -1 || indexOfDot == name.length() - 1) {
-			return name.concat(".txt");
+		if (currentHistoryIndex == 0) {
+			return;
 		}
 
-		return name;
-	}
-
-	private void saveFile() {
-		textArea.setEditable(false);
-		if (savedFile == null) {
-			saveFileAs();
-		} else {
-			writeContentInFile();
-		}
-		textArea.setEditable(true);
-	}
-
-	private void saveFileAs() {
-		textArea.setEditable(false);
-		int fileAnswer = fileChooser.showSaveDialog(container);
-
-		if (fileAnswer == JFileChooser.APPROVE_OPTION) {
-			String name = setNameToFile(fileChooser.getSelectedFile().getAbsolutePath());
-
-			savedFile = new File(name);
-
-			if (!savedFile.exists()) {
-				writeContentInFile();
-				changeTitle();
-			} else {
-				int answer = JOptionPane.showConfirmDialog(container,
-						"This file already exists, do you want overwrite it?", "Overwrite file?",
-						JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE);
-
-				if (answer == JOptionPane.YES_OPTION) {
-					writeContentInFile();
-				}
-			}
-		}
-
-		textArea.setEditable(true);
-	}
-
-	private byte[] textToBuffer() {
-		String textAreaValue = textArea.getText();
-		byte[] buffer = new byte[textAreaValue.length()];
-
-		Thread thread1 = new Thread(() -> {
-			synchronized (lock) {
-				for (int i = 0; i < textAreaValue.length() / 2; i++) {
-					buffer[i] = (byte) textAreaValue.charAt(i);
-				}
-				lock.notify();
-			}
-		});
-
-		Thread thread2 = new Thread(() -> {
-			synchronized (lock) {
-				for (int i = textAreaValue.length() / 2; i < textAreaValue.length(); i++) {
-					buffer[i] = (byte) textAreaValue.charAt(i);
-				}
-				lock.notify();
-			}
-		});
-
-		thread1.start();
-		thread2.start();
-
-		try {
-			thread1.join();
-			thread2.join();
-		} catch (InterruptedException ex) {
-			Logger.getLogger(View.class.getName()).log(Level.SEVERE, null, ex);
-		}
-
-		return buffer;
-	}
-
-	private void writeContentInFile() {
-		try (BufferedOutputStream writer = new BufferedOutputStream(new FileOutputStream(savedFile))) {
-			byte[] buffer = textToBuffer();
-
-			if (buffer == null) {
-				return;
-			}
-
-			writer.write(buffer, 0, buffer.length);
-
-			writer.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		textArea.setEditable(true);
-	}
-
-	private void openFile() {
-		int answer;
-		if (fileChooser.showOpenDialog(container) != JFileChooser.CANCEL_OPTION) {
-			openedFile = savedFile = new File(fileChooser.getSelectedFile().getAbsolutePath());
-			changeTitle();
-
-			if (!textArea.getText().isEmpty()) {
-				if (!fileContentEqualsInstanceContent()) {
-					answer = JOptionPane.showConfirmDialog(container, "Do you want to save this document?", "Save file",
-							JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-					if (answer == JOptionPane.YES_OPTION) {
-						saveFileAs();
-					}
-				}
-			}
-			setReadedContent(readFileContent());
-		}
-	}
-
-	private String readFileContent() {
-		StringBuilder fileContent = new StringBuilder();
-
-		if (openedFile != null) {
-			try (BufferedInputStream reader = new BufferedInputStream(new FileInputStream(openedFile))) {
-				int readedValue = reader.read();
-
-				while (readedValue != -1) {
-					fileContent.append((char) readedValue);
-					readedValue = reader.read();
-				}
-
-				reader.close();
-
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
-
-		return fileContent.toString();
-	}
-
-	private void setReadedContent(String fileContent) {
-		textArea.setText("");
-		textArea.setText(fileContent);
-	}
-
-	private boolean fileContentEqualsInstanceContent() {
-		String fileContent = readFileContent();
-		String instanceContent = textArea.getText();
-
-		return fileContent.toLowerCase().equals(instanceContent.toLowerCase());
+		history.remove(history.size() - 1);
+		currentHistoryIndex--;
+		textArea.setText(history.get(currentHistoryIndex));
 	}
 
 	public static void main(String[] args) {
-		View view = new View();
-		view.setVisible(true);
+		java.awt.EventQueue.invokeLater(() -> {
+			new MainWindow();
+		});
+
 	}
+
 }

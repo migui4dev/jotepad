@@ -6,12 +6,13 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
 
+import jotepad.model.Config;
 import jotepad.view.MainWindow;
 
 /**
@@ -22,14 +23,14 @@ public class FileManager {
 	private static final String USER_HOME = System.getProperty("user.home");
 	private static final String BACKUP_PATH = String.format("%s/.jotepad/backups/", USER_HOME);
 
+	private static final File CONFIG_FILE = new File("config");
+
 	private File file, backupFile;
-	private final Object lock;
 	private final MainWindow view;
 
 	public FileManager(MainWindow view) {
 		this.file = null;
 		this.backupFile = null;
-		this.lock = new Object();
 		this.view = view;
 
 		File backupFolder = new File(BACKUP_PATH);
@@ -39,41 +40,42 @@ public class FileManager {
 		}
 	}
 
-	public void saveFile() {
+	public boolean saveFile() {
 		if (file == null) {
-			saveFileAs();
+			return saveFileAs();
 		} else {
 			byte[] buffer = textToBuffer();
 			writeContentInFile(buffer, file);
 			writeContentInFile(buffer, backupFile);
+			return true;
 		}
 	}
 
-	public void saveFileAs() {
+	public boolean saveFileAs() {
 		int fileAnswer = view.getFileChooser().showSaveDialog(view);
+		int answer = JOptionPane.NO_OPTION;
 
 		if (fileAnswer != JFileChooser.APPROVE_OPTION) {
-			return;
+			return false;
 		}
 
 		file = new File(view.getFileChooser().getSelectedFile().getAbsolutePath());
 		backupFile = new File(createBackupFileName());
 
-		if (!file.exists()) {
+		if (file.exists()) {
+			answer = JOptionPane.showConfirmDialog(view, "This file already exists, do you want overwrite it?",
+					"Overwrite file?", JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE);
+		}
+
+		if (answer == JOptionPane.YES_OPTION || !file.exists()) {
 			writeContentInFile(textToBuffer(), file);
 			writeContentInFile(textToBuffer(), backupFile);
 			view.changeTitle(file.getAbsolutePath());
-
-		} else {
-			int answer = JOptionPane.showConfirmDialog(view, "This file already exists, do you want overwrite it?",
-					"Overwrite file?", JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE);
-
-			if (answer == JOptionPane.YES_OPTION) {
-				writeContentInFile(textToBuffer(), file);
-				writeContentInFile(textToBuffer(), backupFile);
-			}
-
+			return true;
 		}
+
+		return false;
+
 	}
 
 	public void openFile() {
@@ -101,32 +103,8 @@ public class FileManager {
 		String value = view.getTextArea().getText();
 		byte[] buffer = new byte[value.length()];
 
-		Thread thread1 = new Thread(() -> {
-			synchronized (lock) {
-				for (int i = 0; i < value.length() / 2; i++) {
-					buffer[i] = (byte) value.charAt(i);
-				}
-				lock.notify();
-			}
-		});
-
-		Thread thread2 = new Thread(() -> {
-			synchronized (lock) {
-				for (int i = value.length() / 2; i < value.length(); i++) {
-					buffer[i] = (byte) value.charAt(i);
-				}
-				lock.notify();
-			}
-		});
-
-		thread1.start();
-		thread2.start();
-
-		try {
-			thread1.join();
-			thread2.join();
-		} catch (InterruptedException ex) {
-			Logger.getLogger(MainWindow.class.getName()).log(Level.SEVERE, null, ex);
+		for (int i = 0, len = value.length(); i < len; i++) {
+			buffer[i] = (byte) value.charAt(i);
 		}
 
 		return buffer;
@@ -165,6 +143,40 @@ public class FileManager {
 
 	private String createBackupFileName() {
 		return String.format("%s%s", BACKUP_PATH, file.getName());
+	}
+
+	public static Config readConfigFile() {
+		if (!CONFIG_FILE.exists()) {
+			return null;
+		}
+
+		Config c = null;
+
+		try (ObjectInputStream reader = new ObjectInputStream(
+				new BufferedInputStream(new FileInputStream(CONFIG_FILE)))) {
+			c = (Config) reader.readObject();
+
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		} catch (ClassNotFoundException e) {
+			e.printStackTrace();
+		}
+
+		return c;
+	}
+
+	public static void saveConfigFile(Config c) {
+		try (ObjectOutputStream writer = new ObjectOutputStream(
+				new BufferedOutputStream(new FileOutputStream(CONFIG_FILE)))) {
+			if (!CONFIG_FILE.exists()) {
+				CONFIG_FILE.createNewFile();
+			}
+
+			writer.writeObject(c);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
 }

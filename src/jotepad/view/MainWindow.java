@@ -6,6 +6,8 @@ import java.awt.Desktop;
 import java.awt.Font;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -36,22 +38,24 @@ import com.formdev.flatlaf.themes.FlatMacDarkLaf;
 import com.formdev.flatlaf.themes.FlatMacLightLaf;
 
 import jotepad.controller.FileManager;
+import jotepad.model.Config;
 
 /**
  *
  * @author sirmigui
  */
 public class MainWindow extends JFrame {
+	private static final long serialVersionUID = -81894675312554367L;
 
-	private static final LookAndFeel THEMES[] = { new FlatDarkLaf(), new FlatLightLaf(), new FlatMacDarkLaf(),
+	private static final LookAndFeel[] THEMES = { new FlatDarkLaf(), new FlatLightLaf(), new FlatMacDarkLaf(),
 			new FlatMacLightLaf(), new MetalLookAndFeel(), new NimbusLookAndFeel() };
+
+	private LookAndFeel currentTheme;
 
 	private static final Font DEFAULT_FONT = new Font("Liberation Mono", Font.PLAIN, 16);
 
-	private static final long serialVersionUID = -81894675312554367L;
-
 	private static final int WINDOW_WIDHT = 800, WINDOW_HEIGHT = WINDOW_WIDHT - 300;
-	private static final String VERSION = "0.134";
+	private static final String VERSION = "0.135";
 	private static final String TITLE = "Jotepad";
 	private static final String TITLE_FORMAT = "%s v%s | %s";
 
@@ -74,7 +78,11 @@ public class MainWindow extends JFrame {
 	private int currentHistoryIndex;
 	private FontManager fontSelector;
 
-	public MainWindow() {
+	private Config config;
+
+	public MainWindow(Config config) {
+		this.config = config;
+
 		fileManager = new FileManager(this);
 		history = new ArrayList<>();
 		currentHistoryIndex = -1;
@@ -90,24 +98,24 @@ public class MainWindow extends JFrame {
 		menuHelp = new JMenu("Help");
 
 		fileOpen = new JMenuItem("Open...");
-		fileOpen.addActionListener((e -> {
+		fileOpen.addActionListener(e -> {
 			fileManager.openFile();
-		}));
+		});
 
 		fileSave = new JMenuItem("Save");
-		fileSave.addActionListener((e -> {
+		fileSave.addActionListener(e -> {
 			fileManager.saveFile();
-		}));
+		});
 
 		fileSaveAs = new JMenuItem("Save as...");
-		fileSaveAs.addActionListener((e -> {
+		fileSaveAs.addActionListener(e -> {
 			fileManager.saveFileAs();
-		}));
+		});
 
 		fileClose = new JMenuItem("Close");
-		fileClose.addActionListener((e -> {
+		fileClose.addActionListener(e -> {
 			System.exit(0);
-		}));
+		});
 
 		menuFile.add(fileOpen);
 		menuFile.add(fileSave);
@@ -120,11 +128,11 @@ public class MainWindow extends JFrame {
 
 		for (int i = 0; i < THEMES.length; i++) {
 			JMenuItem menuItemTheme = new JMenuItem(THEMES[i].getName());
-
 			int index = i;
-			menuItemTheme.addActionListener((e -> {
+
+			menuItemTheme.addActionListener(e -> {
 				setTheme(index);
-			}));
+			});
 
 			viewChangeTheme.add(menuItemTheme);
 		}
@@ -132,12 +140,12 @@ public class MainWindow extends JFrame {
 		menuView.add(viewChangeTheme);
 
 		formatFont = new JMenuItem("Font...");
-		formatFont.addActionListener((e -> {
+		formatFont.addActionListener(e -> {
 			if (fontSelector == null) {
 				fontSelector = new FontManager(this);
 			}
 			fontSelector.setVisible(true);
-		}));
+		});
 
 		formatWordWrap = new JCheckBoxMenuItem("Word wrap", true);
 		formatWordWrap.addActionListener(e -> {
@@ -148,13 +156,13 @@ public class MainWindow extends JFrame {
 		menuFormat.add(formatWordWrap);
 
 		helpAbout = new JMenuItem("About Jotepad");
-		helpAbout.addActionListener((e -> {
+		helpAbout.addActionListener(e -> {
 			JOptionPane.showMessageDialog(container, "Jotepad it's a text editor programmed in Java.", "About Jotepad",
 					JOptionPane.INFORMATION_MESSAGE);
-		}));
+		});
 
 		helpGitRepo = new JMenuItem("GitHub repository");
-		helpGitRepo.addActionListener((e) -> {
+		helpGitRepo.addActionListener(e -> {
 			try {
 				Desktop d = Desktop.getDesktop();
 
@@ -165,7 +173,6 @@ public class MainWindow extends JFrame {
 				}
 
 				d.browse(new URI("https://github.com/sirmigui/jotepad"));
-
 			} catch (URISyntaxException | IOException ex) {
 				Logger.getLogger(MainWindow.class.getName()).log(Level.SEVERE, null, ex);
 			}
@@ -217,13 +224,13 @@ public class MainWindow extends JFrame {
 						return;
 					}
 					}
-
 				}
 
-				if (!textArea.getText().isBlank() && textArea.getText().length() % 5 == 0) {
-					history.add(textArea.getText());
+				if (textArea.getText().length() % 3 == 0) {
 					currentHistoryIndex++;
+					history.add(textArea.getText());
 				}
+
 			}
 		});
 
@@ -234,23 +241,22 @@ public class MainWindow extends JFrame {
 		container.setLayout(new BorderLayout());
 		container.add(scrollBar, BorderLayout.CENTER);
 
+		this.addWindowListener(new WindowAdapter() {
+			@Override
+			public void windowClosing(WindowEvent e) {
+				Font f = textArea.getFont();
+				Config c = new Config(currentTheme.getName(), f.getFontName(), f.getSize());
+
+				FileManager.saveConfigFile(c);
+			}
+		});
+
 		setJMenuBar(menuBar);
 		setSize(WINDOW_WIDHT, WINDOW_HEIGHT);
 		setVisible(true);
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
 		setTitle(String.format("%s v%s", TITLE, VERSION));
-
-		setTheme(0);
-	}
-
-	private void setTheme(int themeIndex) {
-		try {
-			UIManager.setLookAndFeel(THEMES[themeIndex]);
-			SwingUtilities.updateComponentTreeUI(this);
-			fileChooser.updateUI();
-		} catch (UnsupportedLookAndFeelException | NullPointerException ex) {
-			Logger.getLogger(MainWindow.class.getName()).log(Level.SEVERE, null, ex);
-		}
+		setConfig();
 	}
 
 	public JTextArea getTextArea() {
@@ -261,23 +267,30 @@ public class MainWindow extends JFrame {
 		return fileChooser;
 	}
 
+	public void changeTitle(String filePath) {
+		setTitle(String.format(TITLE_FORMAT, TITLE, VERSION, filePath));
+	}
+
+	private void setTheme(int themeIndex) {
+		try {
+			currentTheme = THEMES[themeIndex];
+			UIManager.setLookAndFeel(currentTheme);
+			SwingUtilities.updateComponentTreeUI(this);
+			fileChooser.updateUI();
+		} catch (UnsupportedLookAndFeelException | NullPointerException ex) {
+			Logger.getLogger(MainWindow.class.getName()).log(Level.SEVERE, null, ex);
+		}
+	}
+
 	private void zoomText(int zoom) {
 		Font font = textArea.getFont();
-		boolean zoomIn = zoom > 0;
+		int size = Math.clamp(font.getSize() + zoom, FontManager.MIN_SIZE, FontManager.MAX_SIZE);
+		textArea.setFont(font.deriveFont(Font.PLAIN, size));
 
-		if (font.getSize() == FontManager.MAX_SIZE && zoomIn || font.getSize() == FontManager.MIN_SIZE && !zoomIn) {
-			return;
-		}
-
-		textArea.setFont(new Font(font.getFontName(), Font.PLAIN, font.getSize() + zoom));
 	}
 
 	private void toggleLineWrap() {
 		textArea.setLineWrap(!textArea.getLineWrap());
-	}
-
-	public void changeTitle(String filePath) {
-		setTitle(String.format(TITLE_FORMAT, TITLE, VERSION, filePath));
 	}
 
 	private void undoChanges() {
@@ -290,11 +303,28 @@ public class MainWindow extends JFrame {
 		textArea.setText(history.get(currentHistoryIndex));
 	}
 
-	public static void main(String[] args) {
-		java.awt.EventQueue.invokeLater(() -> {
-			new MainWindow();
-		});
+	private void setConfig() {
+		if (config == null) {
+			setTheme(1);
+			return;
+		}
 
+		for (int i = 0, len = THEMES.length; i < len; i++) {
+			if (THEMES[i].getName().equals(config.getThemeName())) {
+				setTheme(i);
+				break;
+			}
+		}
+
+		textArea.setFont(new Font(config.getFontName(), Font.PLAIN, config.getFontSize()));
+	}
+
+	public static void main(String[] args) {
+		Config c = FileManager.readConfigFile();
+
+		java.awt.EventQueue.invokeLater(() -> {
+			new MainWindow(c);
+		});
 	}
 
 }

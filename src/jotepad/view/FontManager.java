@@ -24,12 +24,11 @@ import javax.swing.SwingUtilities;
  * @author sirmigui
  */
 public class FontManager extends JDialog {
+	private static final long serialVersionUID = -8162065733123645031L;
 
 	public static final int MAX_SIZE = 120;
-	public static final int MIN_SIZE = 2;
-	public static final int STEP_SIZE = 2;
-
-	private static final long serialVersionUID = -8162065733123645031L;
+	public static final int MIN_SIZE = 6;
+	public static final int STEP_SIZE = 4;
 	private static final String TITLE = "Font selector";
 
 	private JComboBox<String> fontsCombo;
@@ -48,10 +47,12 @@ public class FontManager extends JDialog {
 		requestFocus();
 		setAlwaysOnTop(true);
 
+		Font viewFont = view.getTextArea().getFont();
+
 		systemFonts = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
 
 		fontsCombo = new JComboBox<>(systemFonts);
-		fontsCombo.setSelectedItem(view.getTextArea().getFont().getFontName());
+		fontsCombo.setSelectedItem(viewFont.getFontName());
 		fontsCombo.addItemListener(new ItemListener() {
 			@Override
 			public void itemStateChanged(ItemEvent e) {
@@ -63,8 +64,9 @@ public class FontManager extends JDialog {
 		});
 
 		sizesSpinner = new JSpinner();
-		spinnerModel = new SpinnerNumberModel(view.getTextArea().getFont().getSize(), MIN_SIZE, MAX_SIZE, STEP_SIZE);
-		spinnerModel.addChangeListener((e) -> {
+		spinnerModel = new SpinnerNumberModel(Math.clamp(viewFont.getSize(), MIN_SIZE, MAX_SIZE), MIN_SIZE, MAX_SIZE,
+				STEP_SIZE);
+		spinnerModel.addChangeListener(e -> {
 			Font f = new Font(fontsCombo.getItemAt(fontsCombo.getSelectedIndex()), Font.PLAIN,
 					(int) spinnerModel.getValue());
 			view.getTextArea().setFont(f);
